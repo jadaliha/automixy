@@ -1,4 +1,4 @@
-# from firedom.pretty import i
+from firedom.pretty import i
 from typing import Callable
 
 class binding:
@@ -32,10 +32,10 @@ class reactive:
         self._is_lazy = is_lazy
         self._observers = []
         self._value = None
+        self._is_dirty = True
+        self._setup_dependencies()
         if not is_lazy:
             self._update()
-        else:
-            self._is_dirty = True
 
     def __lshift__(self, args):
         if isinstance(args, (tuple, set)):
@@ -62,9 +62,15 @@ class reactive:
     def _setup_dependencies(self):
         for dep in self._dependencies:
             if isinstance(dep, binding):
-                dep.add_observer(self._mark_dirty)
+                dep.add_observer(self._on_dependency_change)
             elif isinstance(dep, reactive):
-                dep.add_observer(self._mark_dirty)
+                dep.add_observer(self._on_dependency_change)
+
+    def _on_dependency_change(self):
+        if self._is_lazy:
+            self._mark_dirty()
+        else:
+            self._update()
 
     def _update(self):
         dep_values = [dep.value if isinstance(dep, (binding, reactive)) else dep for dep in self._dependencies]
@@ -101,20 +107,16 @@ def PLUS_ONE(x):
     return x + 1  # Call x to get its value
 
 # Usage examples
-b = binding()
-b.set(5)
-
+b = binding(5)
 
 # Eager evaluation
 # PLUS_ONE(b.value) will be evaluated immediately when b.value is set the result is cached and returned when a() is called
-a = reactive()
-a << {PLUS_ONE, b};
+a = reactive(PLUS_ONE, b, is_lazy=False)
 print("Eager evaluation result:", a())  # Should print 6 without re-evaluating func because the value is calculated once we execute a << {func, b} and when we set b the value is recalculated and cached eagerly
 
 
 # New usage example with lazy binding using <
-c = reactive()
-c < {PLUS_ONE, b}
+c = reactive(PLUS_ONE, b, is_lazy=True)
 
 # the PLUS_ONE(b.value) is not calculated till you call c(), the value is cashed until we set b again, when you need the value of c:
 result = c()
