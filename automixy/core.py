@@ -57,15 +57,14 @@ class reactive:
 
     def _on_dependency_change(self):
         print_debug(f"Dependency changed for reactive {self}")
-        if self._is_lazy:
-            self._mark_dirty()
-        else:
+        self._mark_dirty()
+        if not self._is_lazy:
             self._update()
-        self._notify_observers()  # Add this line to propagate changes
+        self._notify_observers()
 
     def _update(self):
         print_debug(f"Updating reactive {self}")
-        dep_values = [dep.value if isinstance(dep, (binding, reactive)) else dep for dep in self._dependencies]
+        dep_values = [dep() if isinstance(dep, reactive) else dep.value if isinstance(dep, binding) else dep for dep in self._dependencies]
         new_value = self._func(*dep_values)
         print_debug(f"Calculated new value: {new_value}")
         if self._value != new_value:
@@ -74,7 +73,7 @@ class reactive:
             print_debug(f"Value changed. Notifying {len(self._observers)} observers")
             self._notify_observers()
         else:
-            print("DEBUG: Value unchanged")
+            print_debug("Value unchanged")
 
     def _mark_dirty(self):
         if not self._is_dirty:
@@ -86,7 +85,7 @@ class reactive:
         print_debug(f"Notifying {len(self._observers)} observers of reactive {self}")
         for observer in list(self._observers):
             print_debug(f"Notifying observer {observer}")
-            observer()
+            observer()._on_dependency_change()
 
     def add_observer(self, observer):
         print_debug(f"Adding observer {observer} to reactive {self}")
@@ -105,16 +104,6 @@ class reactive:
 
     def __del__(self):
         print_debug(f"Cleaning up reactive {self}")
-        weakref.getweakrefs(self)
         for dep in self._dependencies:
             if isinstance(dep, (binding, reactive)):
-                dependancies = set()
-                while dep._observers:
-                    o = dep._observers.pop()
-                    if o() == self:
-                        break
-                    else:
-                        dependancies.add(o)
-                while dependancies:
-                    o = dependancies.pop()
-                    dep._observers.add(o)
+                dep._observers = {obs for obs in dep._observers if obs() is not None and obs() is not self}
