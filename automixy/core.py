@@ -57,10 +57,12 @@ class reactive:
 
     def _on_dependency_change(self):
         print_debug(f"Dependency changed for reactive {self}")
-        self._mark_dirty()
-        if not self._is_lazy:
-            self._update()
-        self._notify_observers()
+        if not self._is_dirty:
+            self._mark_dirty()
+            if not self._is_lazy:
+                self._update()
+            else:
+                self._notify_observers()
 
     def _update(self):
         print_debug(f"Updating reactive {self}")
@@ -74,12 +76,11 @@ class reactive:
             self._notify_observers()
         else:
             print_debug("Value unchanged")
+            self._is_dirty = False
 
     def _mark_dirty(self):
-        if not self._is_dirty:
-            print_debug(f"Marking reactive {self} as dirty")
-            self._is_dirty = True
-            self._notify_observers()
+        print_debug(f"Marking reactive {self} as dirty")
+        self._is_dirty = True
 
     def _notify_observers(self):
         print_debug(f"Notifying {len(self._observers)} observers of reactive {self}")
